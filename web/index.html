@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Synonymaizer Pro</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">SYN</span>
+      <div>
+        <h1>Synonymaizer Pro</h1>
+        <p class="tagline">Multi-language vocabulary elevation. Local, offline, no external APIs.</p>
+      </div>
+    </div>
+    <div class="lang-selector">
+      <label for="language">Language:</label>
+      <select id="language">
+        <option value="auto" selected>Auto-detect</option>
+        <option value="en">English</option>
+        <option value="ru">Русский</option>
+        <option value="mo">Moldovenească</option>
+      </select>
+    </div>
+  </header>
+
+  <section class="docx-bar">
+    <div class="docx-info">
+      <strong>Synonymize Word Document (.docx)</strong>
+      <span>Upload a .docx file — formatting, fonts (Times New Roman, etc.), tables, and styles all preserved.</span>
+    </div>
+    <div class="docx-actions">
+      <label for="docx-file" class="primary">Choose .docx…</label>
+      <input id="docx-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+      <span id="docx-status" class="status"></span>
+    </div>
+  </section>
+
+  <main class="grid">
+    <section class="card">
+      <div class="card-head">
+        <label class="card-title">Original Text</label>
+        <div class="actions">
+          <button id="paste-btn" class="ghost">Paste</button>
+          <button id="clear-btn" class="ghost">Clear</button>
+        </div>
+      </div>
+      <textarea id="input" placeholder="Paste your text here… (English, Russian, Moldovan)" spellcheck="false"></textarea>
+      <div class="meta">
+        <span id="input-stats">0 characters · 0 words</span>
+      </div>
+    </section>
+
+    <aside class="controls">
+      <button id="run-btn" class="primary">Synonymize</button>
+      <div id="status" class="status"></div>
+      <div id="detected-lang" class="detected-lang"></div>
+    </aside>
+
+    <section class="card">
+      <div class="card-head">
+        <label class="card-title">Elevated Text</label>
+        <div class="actions">
+          <button id="copy-btn" class="ghost">Copy</button>
+        </div>
+      </div>
+      <textarea id="output" readonly placeholder="Synonymized text will appear here…"></textarea>
+      <div class="meta">
+        <span id="output-stats">0 characters · 0 words</span>
+        <span id="changes" class="changes"></span>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p class="footer-info">Runs entirely offline on your computer. ~15,000 synonyms across English, Russian, and Moldovan.</p>
+    <p class="footer-author">Author: <strong>Aristarh Ucolov</strong></p>
+    <div class="donate-links">
+      <span>Support the project:</span>
+      <a href="https://buymeacoffee.com/aristarh.ucolov" target="_blank" rel="noopener" class="donate-btn coffee">
+        ☕ Buy Me a Coffee
+      </a>
+      <a href="https://www.donationalerts.com/r/aristarh_ucolov" target="_blank" rel="noopener" class="donate-btn alerts">
+        💜 DonationAlerts
+      </a>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
