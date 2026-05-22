@@ -67,11 +67,89 @@ html, body {
 .brand h1 { margin: 0; font-size: 18px; }
 .tagline { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 
-/* Header controls: theme toggle + UI language */
+/* Header controls: donate + theme toggle + UI language */
 .header-controls {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Compact donate icons, always visible in the header (no scrolling needed) */
+.header-donate {
+  display: flex;
+  gap: 6px;
+}
+.hdr-donate {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  text-decoration: none;
+  font-size: 16px;
+  border: 1px solid var(--border);
+  transition: transform 0.1s, box-shadow 0.15s;
+}
+.hdr-donate:hover {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+.hdr-donate.coffee { background: #FFDD00; }
+.hdr-donate.alerts { background: #9146FF; }
+
+/* Donation toast — bottom-right, slides in, dismissible */
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 18px 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  opacity: 0;
+  transform: translateY(20px);
+  pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.toast-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.toast-close:hover { color: var(--text); }
+.toast-q {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.toast-sub {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.toast-donate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.toast-donate .donate-btn {
+  justify-content: center;
 }
 .theme-btn {
   background: var(--panel);

@@ -16,6 +16,10 @@
       </div>
     </div>
     <div class="header-controls">
+      <div class="header-donate" title="Support the project">
+        <a href="https://buymeacoffee.com/aristarh.ucolov" target="_blank" rel="noopener" class="hdr-donate coffee" data-i18n-title="donate_coffee">☕</a>
+        <a href="https://www.donationalerts.com/r/aristarh_ucolov" target="_blank" rel="noopener" class="hdr-donate alerts" data-i18n-title="donate_alerts">💜</a>
+      </div>
       <button id="theme-toggle" class="theme-btn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
       <div class="ui-lang">
         <label for="ui-lang-select" data-i18n="ui_lang_label">UI:</label>
@@ -109,6 +113,17 @@
       </a>
     </div>
   </footer>
+
+  <!-- Donation toast: shown once per session after a successful synonymise -->
+  <div id="donate-toast" class="toast" role="dialog" aria-live="polite">
+    <button id="toast-close" class="toast-close" aria-label="Close">×</button>
+    <p class="toast-q" data-i18n="donate_q">Did this solution help you?</p>
+    <p class="toast-sub" data-i18n="donate_sub">A small donation keeps the project free and offline. Thank you! 💛</p>
+    <div class="toast-donate">
+      <a href="https://buymeacoffee.com/aristarh.ucolov" target="_blank" rel="noopener" class="donate-btn coffee">☕ Buy Me a Coffee</a>
+      <a href="https://www.donationalerts.com/r/aristarh_ucolov" target="_blank" rel="noopener" class="donate-btn alerts">💜 DonationAlerts</a>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

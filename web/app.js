@@ -19,6 +19,10 @@ const I18N = {
     lang_auto: "Auto-detect",
     hint_shortcut: "Tip: Ctrl + Enter",
     hint_revert: "Click a highlighted word to revert it.",
+    donate_q: "Did this solution help you?",
+    donate_sub: "A small donation keeps the project free and offline. Thank you! 💛",
+    donate_coffee: "Support via Buy Me a Coffee",
+    donate_alerts: "Support via DonationAlerts",
     input_placeholder: "Paste your text here… (English, Russian, Moldovan)",
     output_placeholder: "Synonymized text will appear here…",
     diff_title: "Changes",
@@ -56,6 +60,10 @@ const I18N = {
     lang_auto: "Автоопределение",
     hint_shortcut: "Совет: Ctrl + Enter",
     hint_revert: "Нажмите на подсвеченное слово, чтобы вернуть оригинал.",
+    donate_q: "Помогло ли вам это решение?",
+    donate_sub: "Небольшой донат помогает развивать проект и держать его бесплатным. Спасибо! 💛",
+    donate_coffee: "Поддержать через Buy Me a Coffee",
+    donate_alerts: "Поддержать через DonationAlerts",
     input_placeholder: "Вставьте текст здесь… (Английский, Русский, Молдавский)",
     output_placeholder: "Синонимизированный текст появится здесь…",
     diff_title: "Изменения",
@@ -93,6 +101,10 @@ const I18N = {
     lang_auto: "Auto-detectare",
     hint_shortcut: "Sfat: Ctrl + Enter",
     hint_revert: "Apasă pe un cuvânt evidențiat pentru a-l reveni.",
+    donate_q: "V-a ajutat această soluție?",
+    donate_sub: "O mică donație ajută proiectul să rămână gratuit. Mulțumesc! 💛",
+    donate_coffee: "Susține prin Buy Me a Coffee",
+    donate_alerts: "Susține prin DonationAlerts",
     input_placeholder: "Lipește textul aici… (Engleză, Rusă, Moldovenească)",
     output_placeholder: "Textul sinonimizat va apărea aici…",
     diff_title: "Schimbări",
@@ -157,6 +169,35 @@ function applyTranslations() {
       el.dataset.placeholder = t(key);  // <div> — shown via CSS :empty::before
     }
   });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.getAttribute('data-i18n-title'));
+  });
+}
+
+// ============================================================
+// Donation toast — shown once per browser session after a successful
+// synonymise, so it gently reminds without nagging on every run.
+// ============================================================
+let donateToastTimer = null;
+
+function showDonateToast() {
+  const toast = document.getElementById("donate-toast");
+  toast.classList.add("show");
+  clearTimeout(donateToastTimer);
+  donateToastTimer = setTimeout(hideDonateToast, 16000);
+}
+
+function hideDonateToast() {
+  document.getElementById("donate-toast").classList.remove("show");
+  clearTimeout(donateToastTimer);
+}
+
+function maybeShowDonateToast() {
+  try {
+    if (sessionStorage.getItem("donateToastShown")) return;
+    sessionStorage.setItem("donateToastShown", "1");
+  } catch (_) { /* sessionStorage blocked — show once anyway */ }
+  showDonateToast();
 }
 
 // ============================================================
@@ -335,6 +376,8 @@ async function run() {
       localStorage.setItem('lastInput', text);
       localStorage.setItem('lastOutput', data.output);
     } catch (_) {}
+
+    maybeShowDonateToast();
   } catch (e) {
     status.textContent = t('msg_failed') + e.message;
     status.className = "status err";
@@ -440,6 +483,7 @@ async function uploadDocx(file) {
 
     status.textContent = `${t('msg_ready')}"${outName}" [${langDisplay}] (${changed}/${total} runs, ${synonyms} synonyms)`;
     status.className = "status ok";
+    maybeShowDonateToast();
   } catch (e) {
     status.textContent = t('msg_failed') + e.message;
     status.className = "status err";
@@ -478,6 +522,7 @@ async function uploadBatchDocx(files) {
     status.textContent = `${t('msg_ready')}synonymized_docx.zip (${processed} ok` +
       (failed ? `, ${failed} failed` : "") + `)`;
     status.className = "status ok";
+    maybeShowDonateToast();
   } catch (e) {
     status.textContent = t('msg_failed') + e.message;
     status.className = "status err";
@@ -504,6 +549,7 @@ async function uploadPdf(file) {
     triggerDownload(await resp.blob(), outName);
     status.textContent = `${t('msg_ready')}"${outName}" [${LANG_NAMES[lang] || lang}] (${synonyms} synonyms)`;
     status.className = "status ok";
+    maybeShowDonateToast();
   } catch (e) {
     status.textContent = t('msg_failed') + e.message;
     status.className = "status err";
@@ -570,6 +616,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Apply saved theme (default dark)
   applyTheme(localStorage.getItem('theme') || 'dark');
   document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
+  document.getElementById("toast-close").addEventListener("click", hideDonateToast);
 
   // Apply initial translations
   document.getElementById("ui-lang-select").value = currentUiLang;
