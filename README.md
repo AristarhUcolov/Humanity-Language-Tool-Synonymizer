@@ -24,10 +24,10 @@
 ### ✨ Features
 
 - 🌍 **Multi-language support**: English, Russian, Moldovan/Romanian with auto-detection
-- 📚 **Huge synonym dictionaries** (~15,000 total):
-  - English: **7,400+** entries
-  - Russian: **5,300+** entries
-  - Moldovan: **2,100+** entries
+- 📚 **Huge synonym dictionaries** (~16,300 total):
+  - English: **7,700+** entries
+  - Russian: **5,600+** entries
+  - Moldovan: **2,900+** entries
 - 📄 **Full DOCX support**: Preserves all formatting
   - All fonts (Times New Roman, Arial, Calibri, etc.)
   - All sizes (6pt to 72pt+)
@@ -130,9 +130,9 @@ go build -ldflags="-s -w" -o humanity.exe
 │       ├── replace.go               # Word replacement
 │       ├── punctuation.go           # Punctuation rules
 │       ├── dicts.go                 # Dictionary structures
-│       ├── dict_en.go               # English (7400+)
-│       ├── dict_ru.go               # Russian (5300+)
-│       └── dict_mo.go               # Moldovan (2100+)
+│       ├── dict_en.go               # English (7700+)
+│       ├── dict_ru.go               # Russian (5600+)
+│       └── dict_mo.go               # Moldovan (2900+)
 └── web/
     ├── index.html                   # Web UI
     ├── app.js                       # Frontend logic
@@ -165,10 +165,10 @@ MIT License
 ### ✨ Возможности
 
 - 🌍 **Многоязычность**: Английский, русский, молдавский/румынский с автоопределением
-- 📚 **Огромные словари синонимов** (~15 000 в сумме):
-  - Английский: **7 400+** записей
-  - Русский: **5 300+** записей
-  - Молдавский: **2 100+** записей
+- 📚 **Огромные словари синонимов** (~16 300 в сумме):
+  - Английский: **7 700+** записей
+  - Русский: **5 600+** записей
+  - Молдавский: **2 900+** записей
 - 📄 **Полная поддержка DOCX**: сохраняет всё форматирование
   - Все шрифты (Times New Roman, Arial, Calibri и др.)
   - Все размеры (от 6pt до 72pt+)
@@ -271,9 +271,9 @@ go build -ldflags="-s -w" -o humanity.exe
 │       ├── replace.go               # Замена слов
 │       ├── punctuation.go           # Правила пунктуации
 │       ├── dicts.go                 # Структуры словарей
-│       ├── dict_en.go               # Английский (7400+)
-│       ├── dict_ru.go               # Русский (5300+)
-│       └── dict_mo.go               # Молдавский (2100+)
+│       ├── dict_en.go               # Английский (7700+)
+│       ├── dict_ru.go               # Русский (5600+)
+│       └── dict_mo.go               # Молдавский (2900+)
 └── web/
     ├── index.html                   # Веб-интерфейс
     ├── app.js                       # Логика фронтенда
