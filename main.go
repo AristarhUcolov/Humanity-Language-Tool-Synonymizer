@@ -213,16 +213,17 @@ func handleHumanizeDocx(w http.ResponseWriter, r *http.Request) {
 	totalRuns := 0
 	changedRuns := 0
 	totalSynonyms := 0
-	totalPunctFixes := 0
 
+	// Use ProcessRun (not Process) for DOCX: each w:t node is a fragment, so
+	// only synonyms are swapped — whitespace, capitalisation, punctuation, and
+	// paragraph structure are left exactly as in the original document.
 	out, err := docx.Process(srcBytes, func(s string) string {
 		totalRuns++
 		if strings.TrimSpace(s) == "" {
 			return s
 		}
-		res := humanize.Process(humanize.Input{Text: s, Language: lang})
+		res := humanize.ProcessRun(humanize.Input{Text: s, Language: lang})
 		totalSynonyms += res.SynonymsApplied
-		totalPunctFixes += res.PunctFixes
 		if res.Output != s {
 			changedRuns++
 		}
@@ -244,7 +245,6 @@ func handleHumanizeDocx(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Humanity-Runs-Total", fmt.Sprintf("%d", totalRuns))
 	w.Header().Set("X-Humanity-Runs-Changed", fmt.Sprintf("%d", changedRuns))
 	w.Header().Set("X-Humanity-Synonyms", fmt.Sprintf("%d", totalSynonyms))
-	w.Header().Set("X-Humanity-Punct-Fixes", fmt.Sprintf("%d", totalPunctFixes))
 	w.Header().Set("X-Humanity-Words-Before", fmt.Sprintf("%d", before.Words))
 	w.Header().Set("X-Humanity-Words-After", fmt.Sprintf("%d", after.Words))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(out)))

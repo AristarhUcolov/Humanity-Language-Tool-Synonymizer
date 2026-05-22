@@ -73,6 +73,46 @@ func Process(in Input) Result {
 	return res
 }
 
+// ProcessRun is the synonymaizer pipeline for a single DOCX text run (one
+// <w:t> node). Unlike Process, it applies ONLY synonym replacement and does
+// NOT touch structure:
+//
+//   - Leading/trailing whitespace is preserved exactly (no collapseSpaces).
+//     A DOCX paragraph is often split across several runs — e.g. "The ",
+//     "good", " man" — and trimming a run's edge spaces would glue words
+//     together ("Theexcellentman").
+//   - Sentence capitalisation is NOT forced (no capitalizeSentences). The
+//     original document already has correct capitalisation; forcing the
+//     first letter of every run uppercase would wrongly capitalise mid-
+//     sentence runs. Word-level case is still preserved by replaceMap's
+//     preserveCase (so "Good" → "Excellent", "good" → "excellent").
+//   - Long sentences are NOT split and punctuation is NOT normalised: a run
+//     is a fragment, not a sentence, so those operations would corrupt it.
+//
+// The result: the run's text is identical to the original except that
+// individual words are swapped for synonyms — exact structural fidelity.
+func ProcessRun(in Input) Result {
+	text := in.Text
+	res := Result{Before: Analyse(text)}
+
+	lang := in.Language
+	if lang == "" || lang == LangAuto {
+		lang = DetectLanguage(text)
+	}
+	res.DetectedLanguage = lang
+
+	p := pickPack(lang)
+
+	var n int
+	text, n = replaceMap(text, p.AICliches)
+	res.SynonymsApplied = n
+
+	res.Output = text
+	res.After = Analyse(text)
+	res.Notes = buildNotes(res)
+	return res
+}
+
 func buildNotes(r Result) []string {
 	var notes []string
 
