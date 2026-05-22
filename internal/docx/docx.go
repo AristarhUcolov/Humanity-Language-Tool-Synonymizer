@@ -1,53 +1,30 @@
 // Package docx processes Office Open XML (.docx) files by applying a text
-// transformation to every w:t (text-run) node, while preserving all formatting,
+// transformation to the document's text while preserving all formatting,
 // styles, and structure.
 //
-// FORMATTING PRESERVATION (all maintained):
-//   Font Family       - Times New Roman, Arial, Calibri, etc (w:rFonts preserved)
-//   Font Size         - All point sizes (w:sz preserved in pts)
-//   Font Weight       - Bold (w:b), Light, Extra Bold
-//   Font Style        - Italic (w:i), Normal, Oblique
-//   Text Decoration   - Underline (w:u), Strikethrough (w:strike), Double strike
-//   Font Color        - RGB colors (w:color attribute)
-//   Highlight Color   - Background color (w:highlight)
-//   Superscript       - Raised text (w:vertAlign="superscript")
-//   Subscript         - Lowered text (w:vertAlign="subscript")
-//   Text Effects      - Outline, shadow, reflection, etc
+// CROSS-RUN MATCHING:
+// A DOCX paragraph is split into "runs" (<w:r>), and a single word can land
+// in its own run when formatting changes. To let multi-word synonyms match
+// across run boundaries, this package groups adjacent runs that share
+// identical formatting (<w:rPr>), transforms the joined text, and writes the
+// result back — putting the new text in the group's first run and emptying
+// the rest. Groups never mix different formatting, so bold/italic/colour are
+// preserved exactly.
 //
-// STRUCTURAL ELEMENTS (all preserved):
-//   Paragraphs        - All paragraph breaks and w:pStyle
-//   Tables            - Structure, merging, borders, shading
-//   Lists             - Bullets, numbering, nesting levels
-//   Headers/Footers   - On all sections, first page, different odd/even
-//   Sections          - Page breaks, columns, margins, orientation
-//   Styles            - Paragraph styles, character styles, table styles
-//   Hyperlinks        - Links with targets (w:hyperlink)
-//   Fields            - Complex fields, TOC, dates, etc
-//   Comments          - All comments with authors and dates
-//   Tracked Changes   - Insert/delete tracking with author
-//   Footnotes/Endnotes- Document notes preserved
-//   Text Boxes        - Shape text preserved
-//   Equations         - MathML equations unchanged
-//   Images            - All images and charts preserved
-//   Objects           - Embedded objects maintained
+// Runs that are "complex" (contain tabs, breaks, fields, drawings, or more
+// than one <w:t>) are never grouped — they are transformed individually so
+// nothing structural is disturbed.
 //
-// ALGORITHM:
-//   1. Extract DOCX ZIP archive
-//   2. Identify text nodes (<w:t>) in all content files
-//   3. Apply transform function only to text content
-//   4. Preserve all surrounding XML structure and attributes
-//   5. Re-create DOCX with transformed text
+// FORMATTING PRESERVED: fonts (Times New Roman, Arial, …), sizes, bold,
+// italic, underline, strikethrough, colours, highlight, super/subscript,
+// effects, paragraph/character styles.
 //
-// CONTENT FILES PROCESSED:
-//   word/document.xml   - Main document body
-//   word/header*.xml    - Page headers (different sections)
-//   word/footer*.xml    - Page footers
-//   word/footnotes.xml  - Document footnotes
-//   word/endnotes.xml   - Document endnotes
-//   word/comments.xml   - All comments and reviews
-//   word/styles.xml     - Style definitions (unchanged)
-//   word/theme.xml      - Theme colors (unchanged)
-//   word/numbering.xml  - List numbering (unchanged)
+// STRUCTURE PRESERVED: paragraphs, tables, lists, headers/footers, sections,
+// hyperlinks, fields, comments, tracked changes, footnotes/endnotes, text
+// boxes, equations, images, embedded objects.
+//
+// CONTENT FILES PROCESSED: word/document.xml, word/header*.xml,
+// word/footer*.xml, word/footnotes.xml, word/endnotes.xml, word/comments*.xml.
 package docx
 
 import (
@@ -61,18 +38,11 @@ import (
 )
 
 // Process reads a DOCX from src and writes a new DOCX to the returned byte
-// slice with every w:t node's text transformed by `transform`. Supports:
-// - Document body text, tables, lists
-// - Headers and footers
-// - Footnotes and endnotes
-// - Comments and tracked changes
-// - Hyperlinks (preserves link targets)
-// - Form fields and text boxes
-// All formatting (bold, italic, color, styles, images, layout) is preserved.
+// slice with the document text transformed by `transform`.
 //
-// transform receives the text content of a single <w:t> run and returns the
-// rewritten content. Called on each run independently for perfect formatting.
-// Handles multi-paragraph replacements in tables and lists.
+// transform receives a piece of text (a run, or the joined text of a group
+// of identically-formatted runs) and returns the rewritten content. All
+// formatting, styles, images and layout are preserved.
 func Process(src []byte, transform func(string) string) ([]byte, error) {
 	if len(src) < 4 || string(src[:4]) != "PK\x03\x04" {
 		return nil, fmt.Errorf("not a DOCX (missing ZIP signature)")
@@ -109,7 +79,7 @@ func copyEntry(zw *zip.Writer, f *zip.File, transform func(string) string) error
 	}
 
 	if shouldProcess(f.Name) {
-		data = transformDocumentXML(data, transform)
+		data = transformContentXML(data, transform)
 	}
 
 	header := &zip.FileHeader{
@@ -129,48 +99,208 @@ func copyEntry(zw *zip.Writer, f *zip.File, transform func(string) string) error
 
 // shouldProcess returns true for every part of the DOCX that contains
 // user-authored text. Skips themes, styles, settings, fonts, templates.
-// Processes all content files that may contain text runs to replace.
 func shouldProcess(name string) bool {
 	switch {
-	// Main document content
 	case name == "word/document.xml":
 		return true
-	// Headers and footers
 	case strings.HasPrefix(name, "word/header") && strings.HasSuffix(name, ".xml"):
 		return true
 	case strings.HasPrefix(name, "word/footer") && strings.HasSuffix(name, ".xml"):
 		return true
-	// Notes
 	case name == "word/footnotes.xml":
 		return true
 	case name == "word/endnotes.xml":
 		return true
-	// Collaborative features
-	case name == "word/comments.xml":
-		return true
 	case strings.HasPrefix(name, "word/comments") && strings.HasSuffix(name, ".xml"):
 		return true
-	// Form fields and alternative content
 	case strings.HasPrefix(name, "word/") && strings.Contains(name, "textbox"):
-		return true
-	// Tracking changes (revisions maintain text)
-	case name == "word/document.xml":
 		return true
 	}
 	return false
 }
 
-// reTextNode matches a <w:t> element with optional attributes.
-// Captures: tag name (w:t or t), attributes, and inner text content.
-// Supports both namespaced (w:t) and default namespace (t) elements.
-// Handles text in tables, lists, paragraphs, headers, footers, and notes.
-var reTextNode = regexp.MustCompile(`(?s)<(w:t|t)((?:\s[^>]*)?)>(.*?)</(?:w:t|t)>`)
+var (
+	// reParagraph matches a <w:p>…</w:p> element. \b after "w:p" stops it from
+	// matching <w:pPr>. Paragraphs do not nest, so a non-greedy body is safe.
+	reParagraph = regexp.MustCompile(`(?s)<w:p\b[^>]*?>.*?</w:p>`)
 
-// transformDocumentXML applies transform to every w:t text node in the XML.
-// Preserves all XML structure, attributes, formatting, hyperlinks, and styles.
-// Maintains whitespace through xml:space="preserve" when needed.
-// Handles entity-encoded characters (&#160;, &lt;, etc.) properly.
-func transformDocumentXML(data []byte, transform func(string) string) []byte {
+	// reRun matches a <w:r>…</w:r> element. \b after "w:r" stops it from
+	// matching <w:rPr>/<w:rStyle>. Runs do not nest.
+	reRun = regexp.MustCompile(`(?s)<w:r\b[^>]*?>.*?</w:r>`)
+
+	// reRunPr captures the optional <w:rPr>…</w:rPr> properties block.
+	reRunPr = regexp.MustCompile(`(?s)<w:rPr>.*?</w:rPr>`)
+
+	// reTextNode matches a <w:t> element: tag, attributes, inner text.
+	reTextNode = regexp.MustCompile(`(?s)<(w:t|t)((?:\s[^>]*)?)>(.*?)</(?:w:t|t)>`)
+
+	// complexRunMarkers indicate a run that must NOT be grouped: it carries
+	// non-text content whose position matters.
+	complexRunMarkers = []string{
+		"<w:tab", "<w:br", "<w:cr", "<w:fldChar", "<w:instrText",
+		"<w:drawing", "<w:object", "<w:pict", "<w:sym", "<w:noBreakHyphen",
+		"<w:softHyphen", "<mc:AlternateContent",
+	}
+)
+
+// transformContentXML applies transform across the XML. It works paragraph by
+// paragraph so multi-word synonyms can match across run boundaries. If the
+// part has no paragraphs, it falls back to a plain per-<w:t> transform.
+func transformContentXML(data []byte, transform func(string) string) []byte {
+	if !bytes.Contains(data, []byte("<w:p")) {
+		return transformTextNodes(data, transform)
+	}
+	return reParagraph.ReplaceAllFunc(data, func(para []byte) []byte {
+		return transformParagraph(para, transform)
+	})
+}
+
+// transformParagraph processes one <w:p> element. It splits the paragraph into
+// run and non-run segments, groups adjacent simple runs that share identical
+// formatting, and transforms each group's joined text as a unit.
+func transformParagraph(para []byte, transform func(string) string) []byte {
+	s := string(para)
+	runLocs := reRun.FindAllStringIndex(s, -1)
+	if len(runLocs) == 0 {
+		// No runs — still transform any stray <w:t> nodes.
+		return transformTextNodes(para, transform)
+	}
+
+	var b strings.Builder
+	cursor := 0
+
+	// A pending group of consecutive simple runs with identical rPr.
+	type runRef struct{ start, end int }
+	var group []runRef
+	var groupPr string
+
+	flush := func() {
+		if len(group) == 0 {
+			return
+		}
+		if len(group) == 1 {
+			// Single run — transform it on its own.
+			r := group[0]
+			b.WriteString(transformSimpleRun(s[r.start:r.end], transform))
+		} else {
+			// Join all runs' text, transform together, redistribute.
+			var joined strings.Builder
+			for _, r := range group {
+				joined.WriteString(simpleRunText(s[r.start:r.end]))
+			}
+			orig := joined.String()
+			out := transform(orig)
+			if out == orig {
+				// No change — emit runs verbatim.
+				for _, r := range group {
+					b.WriteString(s[r.start:r.end])
+				}
+			} else {
+				// First run gets the whole result; the rest are emptied.
+				b.WriteString(setSimpleRunText(s[group[0].start:group[0].end], out))
+				for _, r := range group[1:] {
+					b.WriteString(setSimpleRunText(s[r.start:r.end], ""))
+				}
+			}
+		}
+		group = group[:0]
+		groupPr = ""
+	}
+
+	for _, loc := range runLocs {
+		// Emit the literal segment before this run.
+		gap := s[cursor:loc[0]]
+		run := s[loc[0]:loc[1]]
+		cursor = loc[1]
+
+		// A non-whitespace gap (bookmark, proofErr, …) breaks any group.
+		if strings.TrimSpace(gap) != "" {
+			flush()
+		}
+
+		if isSimpleRun(run) {
+			pr := runProps(run)
+			if len(group) > 0 && pr != groupPr {
+				flush()
+			}
+			if len(group) == 0 {
+				groupPr = pr
+			}
+			// Defer writing the run; record its location.
+			// The gap must be written in order: flush() above already ran if
+			// needed, so write the gap now, then stage the run.
+			b.WriteString(gap)
+			group = append(group, runRef{loc[0], loc[1]})
+		} else {
+			// Complex run — flush the group, then transform it standalone.
+			flush()
+			b.WriteString(gap)
+			b.Write(transformTextNodes([]byte(run), transform))
+		}
+	}
+	flush()
+	b.WriteString(s[cursor:]) // trailing literal (</w:p> and friends)
+	return []byte(b.String())
+}
+
+// isSimpleRun reports whether a run is safe to group: it has exactly one <w:t>
+// and carries no position-sensitive content (tabs, breaks, fields, drawings).
+func isSimpleRun(run string) bool {
+	for _, m := range complexRunMarkers {
+		if strings.Contains(run, m) {
+			return false
+		}
+	}
+	return len(reTextNode.FindAllStringIndex(run, -1)) == 1
+}
+
+// runProps returns the run's <w:rPr>…</w:rPr> block, or "" if it has none.
+// Two runs with byte-identical props are treated as identically formatted.
+func runProps(run string) string {
+	return reRunPr.FindString(run)
+}
+
+// simpleRunText returns the decoded text of a simple run's single <w:t>.
+func simpleRunText(run string) string {
+	m := reTextNode.FindStringSubmatch(run)
+	if len(m) < 4 {
+		return ""
+	}
+	return html.UnescapeString(m[3])
+}
+
+// setSimpleRunText replaces the text of a simple run's single <w:t> with
+// newText, adding xml:space="preserve" when edge whitespace must survive.
+func setSimpleRunText(run, newText string) string {
+	return reTextNode.ReplaceAllStringFunc(run, func(node string) string {
+		m := reTextNode.FindStringSubmatch(node)
+		if len(m) < 4 {
+			return node
+		}
+		tag, attrs := m[1], m[2]
+		if !strings.Contains(attrs, "xml:space") && hasEdgeSpace(newText) {
+			attrs += ` xml:space="preserve"`
+		}
+		return "<" + tag + attrs + ">" + html.EscapeString(newText) + "</" + tag + ">"
+	})
+}
+
+// transformSimpleRun transforms a lone simple run (not part of a group).
+func transformSimpleRun(run string, transform func(string) string) string {
+	orig := simpleRunText(run)
+	if orig == "" {
+		return run
+	}
+	out := transform(orig)
+	if out == orig {
+		return run
+	}
+	return setSimpleRunText(run, out)
+}
+
+// transformTextNodes applies transform to every <w:t> node independently.
+// Used as a fallback for complex runs and parts without paragraphs.
+func transformTextNodes(data []byte, transform func(string) string) []byte {
 	return reTextNode.ReplaceAllFunc(data, func(node []byte) []byte {
 		sub := reTextNode.FindSubmatch(node)
 		if len(sub) < 4 {
@@ -182,19 +312,15 @@ func transformDocumentXML(data []byte, transform func(string) string) []byte {
 		if raw == "" {
 			return node
 		}
-		// Unescape XML entities to get actual text
 		text := html.UnescapeString(raw)
-		// Apply user transformation (synonym replacement)
 		out := transform(text)
 		if out == text {
-			return node // No change, return original
+			return node
 		}
-		// Preserve leading/trailing whitespace in output if present
 		if !strings.Contains(attrs, "xml:space") &&
 			(hasEdgeSpace(out) || hasEdgeSpace(text)) {
 			attrs += ` xml:space="preserve"`
 		}
-		// Rebuild XML element with escaped output
 		var b strings.Builder
 		b.WriteByte('<')
 		b.WriteString(tag)
@@ -215,53 +341,8 @@ func hasEdgeSpace(s string) bool {
 	return s[0] == ' ' || s[0] == '\t' || s[len(s)-1] == ' ' || s[len(s)-1] == '\t'
 }
 
-// PreserveFormatting detects and documents formatting in a text run.
-// Used for analysis - actual formatting is preserved via XML attributes.
-//
-// Example w:r (text run) structure that's preserved:
-//   <w:r>
-//     <w:rPr>                                    (run properties - ALL preserved)
-//       <w:rFonts val="Times New Roman"/>        (font family)
-//       <w:sz val="24"/>                         (size in half-points, e.g., 24 = 12pt)
-//       <w:szCs val="24"/>                       (complex script size)
-//       <w:b/>                                   (bold)
-//       <w:bCs/>                                 (complex script bold)
-//       <w:i/>                                   (italic)
-//       <w:iCs/>                                 (complex script italic)
-//       <w:color val="FF0000"/>                  (RGB color: red)
-//       <w:u val="single"/>                      (underline: single, double, dotted, etc)
-//       <w:strike/>                              (strikethrough)
-//       <w:dstrike/>                             (double strikethrough)
-//       <w:highlight val="yellow"/>              (background color)
-//       <w:vertAlign val="superscript"/>         (superscript/subscript)
-//       <w:effect val="outline"/>                (text effect)
-//       <w:outline/>                             (outline effect)
-//       <w:shadow/>                              (shadow effect)
-//       <w:shd val="clear" fill="FFFF00"/>      (shading: background color)
-//       <w:pStyle val="Heading1"/>               (paragraph style reference)
-//     </w:rPr>
-//     <w:t>Original text here</w:t>             (text content - ONLY THIS IS TRANSFORMED)
-//   </w:r>
-//
-// When transforming text: ALL attributes above are preserved automatically
-// because they exist in separate XML elements/attributes outside <w:t>.
-// Only the text between <w:t> and </w:t> is modified.
-func PreserveFormatting(xmlRun []byte) map[string]interface{} {
-	// Parse formatting info for documentation purposes
-	// Actual preservation happens automatically via XML structure
-	return map[string]interface{}{
-		"method":     "XML attribute preservation",
-		"preserved":  true,
-		"fonts":      "all",
-		"colors":     "all",
-		"effects":    "all",
-		"styles":     "all",
-		"structures": "all",
-	}
-}
-
 // ExtractPlainText concatenates the text content of word/document.xml,
-// up to maxBytes, so callers can run language/style detection on it.
+// up to maxBytes, so callers can run language detection on it.
 // Returns an empty string if the DOCX cannot be opened.
 func ExtractPlainText(src []byte, maxBytes int) string {
 	zr, err := zip.NewReader(bytes.NewReader(src), int64(len(src)))
