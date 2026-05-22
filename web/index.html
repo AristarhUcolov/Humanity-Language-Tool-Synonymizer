@@ -30,12 +30,12 @@
 
   <section class="docx-bar" id="docx-dropzone">
     <div class="docx-info">
-      <strong data-i18n="docx_title">Synonymize Word Document (.docx)</strong>
-      <span data-i18n="docx_desc">Drag & drop a .docx file here or click to choose — fonts, tables, styles all preserved.</span>
+      <strong data-i18n="docx_title">Synonymize Documents (.docx / .pdf)</strong>
+      <span data-i18n="docx_desc">Drag & drop files here or click to choose. Multiple .docx → ZIP. PDF text is extracted and returned as .txt.</span>
     </div>
     <div class="docx-actions">
-      <label for="docx-file" class="primary" data-i18n="docx_choose">Choose .docx…</label>
-      <input id="docx-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+      <label for="docx-file" class="primary" data-i18n="docx_choose">Choose files…</label>
+      <input id="docx-file" type="file" accept=".docx,.pdf" multiple hidden>
       <span id="docx-status" class="status"></span>
     </div>
   </section>
@@ -79,11 +79,12 @@
           <button id="download-btn" class="ghost" data-i18n="download_btn">Download .txt</button>
         </div>
       </div>
-      <textarea id="output" readonly data-i18n-placeholder="output_placeholder" placeholder="Synonymized text will appear here…"></textarea>
+      <div id="output" class="output-area" data-i18n-placeholder="output_placeholder"></div>
       <div class="meta">
         <span id="output-stats">0 characters · 0 words</span>
         <span id="changes" class="changes"></span>
       </div>
+      <p class="hint revert-hint" data-i18n="hint_revert" style="display:none">Click a highlighted word to revert it.</p>
     </section>
   </main>
 
@@ -96,7 +97,7 @@
   </section>
 
   <footer>
-    <p class="footer-info" data-i18n="footer_info">Runs entirely offline on your computer. ~18,400 synonyms across English, Russian, and Moldovan.</p>
+    <p class="footer-info" data-i18n="footer_info">Runs entirely offline on your computer. ~18,800 synonyms across English, Russian, and Moldovan.</p>
     <p class="footer-author"><span data-i18n="footer_author">Author:</span> <strong>Aristarh Ucolov</strong></p>
     <div class="donate-links">
       <span data-i18n="donate_label">Support the project:</span>

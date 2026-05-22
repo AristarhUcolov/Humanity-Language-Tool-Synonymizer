@@ -24,17 +24,18 @@
 ### ✨ Features
 
 - 🌍 **Multi-language support**: English, Russian, Moldovan/Romanian with auto-detection
-- 📚 **Huge synonym dictionaries** (~18,400 total):
-  - English: **7,700+** entries
-  - Russian: **5,600+** entries
-  - Moldovan: **5,000+** entries
-- 📄 **Full DOCX support**: Preserves all formatting
-  - All fonts (Times New Roman, Arial, Calibri, etc.)
-  - All sizes (6pt to 72pt+)
-  - Bold, italic, underline, strikethrough
-  - Colors (RGB)
-  - Tables, lists, headers, footers
-  - Hyperlinks, comments, tracked changes
+- 📚 **Huge synonym dictionaries** (~18,800 total):
+  - English: **7,900+** entries
+  - Russian: **5,700+** entries
+  - Moldovan: **5,100+** entries
+- 📄 **Full DOCX support**: preserves all formatting (cross-run synonym matching)
+  - All fonts (Times New Roman, Arial, Calibri, etc.), sizes (6pt–72pt+)
+  - Bold, italic, underline, strikethrough, colors (RGB)
+  - Tables, lists, headers, footers, hyperlinks, comments, tracked changes
+- 📑 **Batch DOCX**: process many .docx at once → one ZIP
+- 📕 **PDF text extraction**: pull text from PDFs, synonymize, get .txt
+- ✨ **Click-to-revert**: changed words are highlighted; click one to undo it
+- 🌗 **Light / dark theme**
 - 🔒 **100% offline** — no data leaves your computer
 - 🌐 **Network access** — share with devices on local network
 - 🎨 **Smart punctuation** — handles dashes, quotes, ellipses across languages
@@ -99,9 +100,13 @@ Response:
 ```
 
 #### POST /api/humanize-docx
-Multipart form with `file` (DOCX) and optional `language` field.
+Multipart form with `file` (DOCX) and optional `language`. Returns the processed DOCX.
 
-Returns the processed DOCX as binary download.
+#### POST /api/humanize-docx-batch
+Multipart form with several `files` (DOCX) and optional `language`. Returns a ZIP of all processed documents.
+
+#### POST /api/humanize-pdf
+Multipart form with `file` (PDF) and optional `language`. Extracts the PDF text, synonymizes it, returns a `.txt`.
 
 #### GET /api/languages
 Lists all supported languages.
@@ -123,6 +128,7 @@ go build -ldflags="-s -w" -o humanity.exe
 ├── main.go                          # HTTP server
 ├── internal/
 │   ├── docx/docx.go                 # DOCX processing
+│   ├── docx/pdf.go                  # PDF text extraction
 │   └── humanize/
 │       ├── humanize.go              # Main pipeline
 │       ├── analyze.go               # Text analysis
@@ -130,9 +136,9 @@ go build -ldflags="-s -w" -o humanity.exe
 │       ├── replace.go               # Word replacement
 │       ├── punctuation.go           # Punctuation rules
 │       ├── dicts.go                 # Dictionary structures
-│       ├── dict_en.go               # English (7700+)
-│       ├── dict_ru.go               # Russian (5600+)
-│       └── dict_mo.go               # Moldovan (5000+)
+│       ├── dict_en.go               # English (7900+)
+│       ├── dict_ru.go               # Russian (5700+)
+│       └── dict_mo.go               # Moldovan (5100+)
 └── web/
     ├── index.html                   # Web UI
     ├── app.js                       # Frontend logic
@@ -165,17 +171,18 @@ MIT License
 ### ✨ Возможности
 
 - 🌍 **Многоязычность**: Английский, русский, молдавский/румынский с автоопределением
-- 📚 **Огромные словари синонимов** (~18 400 в сумме):
-  - Английский: **7 700+** записей
-  - Русский: **5 600+** записей
-  - Молдавский: **5 000+** записей
-- 📄 **Полная поддержка DOCX**: сохраняет всё форматирование
-  - Все шрифты (Times New Roman, Arial, Calibri и др.)
-  - Все размеры (от 6pt до 72pt+)
-  - Жирный, курсив, подчёркивание, зачёркивание
-  - Цвета (RGB)
-  - Таблицы, списки, колонтитулы
-  - Гиперссылки, комментарии, отслеживание изменений
+- 📚 **Огромные словари синонимов** (~18 800 в сумме):
+  - Английский: **7 900+** записей
+  - Русский: **5 700+** записей
+  - Молдавский: **5 100+** записей
+- 📄 **Полная поддержка DOCX**: сохраняет всё форматирование (cross-run матчинг)
+  - Все шрифты (Times New Roman, Arial, Calibri и др.), размеры (6pt–72pt+)
+  - Жирный, курсив, подчёркивание, зачёркивание, цвета (RGB)
+  - Таблицы, списки, колонтитулы, гиперссылки, комментарии, правки
+- 📑 **Пакетная обработка DOCX**: много .docx за раз → один ZIP
+- 📕 **Извлечение текста из PDF**: текст из PDF синонимизируется → .txt
+- ✨ **Откат по клику**: заменённые слова подсвечены, клик отменяет замену
+- 🌗 **Светлая / тёмная тема**
 - 🔒 **100% оффлайн** — данные никуда не передаются
 - 🌐 **Сетевой доступ** — работа с любых устройств в локальной сети
 - 🎨 **Умная пунктуация** — корректные тире, кавычки, многоточие для всех языков
@@ -264,6 +271,7 @@ go build -ldflags="-s -w" -o humanity.exe
 ├── main.go                          # HTTP-сервер
 ├── internal/
 │   ├── docx/docx.go                 # Обработка DOCX
+│   ├── docx/pdf.go                  # Извлечение текста из PDF
 │   └── humanize/
 │       ├── humanize.go              # Главный pipeline
 │       ├── analyze.go               # Анализ текста
@@ -271,9 +279,9 @@ go build -ldflags="-s -w" -o humanity.exe
 │       ├── replace.go               # Замена слов
 │       ├── punctuation.go           # Правила пунктуации
 │       ├── dicts.go                 # Структуры словарей
-│       ├── dict_en.go               # Английский (7700+)
-│       ├── dict_ru.go               # Русский (5600+)
-│       └── dict_mo.go               # Молдавский (5000+)
+│       ├── dict_en.go               # Английский (7900+)
+│       ├── dict_ru.go               # Русский (5700+)
+│       └── dict_mo.go               # Молдавский (5100+)
 └── web/
     ├── index.html                   # Веб-интерфейс
     ├── app.js                       # Логика фронтенда

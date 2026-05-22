@@ -18,6 +18,7 @@ const I18N = {
     lang_label: "Synonym Language",
     lang_auto: "Auto-detect",
     hint_shortcut: "Tip: Ctrl + Enter",
+    hint_revert: "Click a highlighted word to revert it.",
     input_placeholder: "Paste your text here… (English, Russian, Moldovan)",
     output_placeholder: "Synonymized text will appear here…",
     diff_title: "Changes",
@@ -54,6 +55,7 @@ const I18N = {
     lang_label: "Язык синонимов",
     lang_auto: "Автоопределение",
     hint_shortcut: "Совет: Ctrl + Enter",
+    hint_revert: "Нажмите на подсвеченное слово, чтобы вернуть оригинал.",
     input_placeholder: "Вставьте текст здесь… (Английский, Русский, Молдавский)",
     output_placeholder: "Синонимизированный текст появится здесь…",
     diff_title: "Изменения",
@@ -90,6 +92,7 @@ const I18N = {
     lang_label: "Limba sinonimelor",
     lang_auto: "Auto-detectare",
     hint_shortcut: "Sfat: Ctrl + Enter",
+    hint_revert: "Apasă pe un cuvânt evidențiat pentru a-l reveni.",
     input_placeholder: "Lipește textul aici… (Engleză, Rusă, Moldovenească)",
     output_placeholder: "Textul sinonimizat va apărea aici…",
     diff_title: "Schimbări",
@@ -148,7 +151,11 @@ function applyTranslations() {
   });
   document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
     const key = el.getAttribute('data-i18n-placeholder');
-    el.placeholder = t(key);
+    if ('placeholder' in el) {
+      el.placeholder = t(key);          // <input>/<textarea>
+    } else {
+      el.dataset.placeholder = t(key);  // <div> — shown via CSS :empty::before
+    }
   });
 }
 
@@ -160,11 +167,71 @@ function countWords(s) {
   return m ? m.length : 0;
 }
 
+// The output area is a <div> (not a textarea) so changed words can be
+// highlighted and clicked. getOutputText/setOutputText bridge the difference.
+function getOutputText() {
+  return document.getElementById("output").innerText || "";
+}
+
+function setOutputPlain(text) {
+  const el = document.getElementById("output");
+  el.textContent = text;
+}
+
 function updateStats() {
   const inp = document.getElementById("input").value;
-  const out = document.getElementById("output").value;
-  document.getElementById("input-stats").textContent = `${inp.length} ${currentUiLang === 'ru' ? 'символов' : currentUiLang === 'mo' ? 'caractere' : 'characters'} · ${countWords(inp)} ${currentUiLang === 'ru' ? 'слов' : currentUiLang === 'mo' ? 'cuvinte' : 'words'}`;
-  document.getElementById("output-stats").textContent = `${out.length} ${currentUiLang === 'ru' ? 'символов' : currentUiLang === 'mo' ? 'caractere' : 'characters'} · ${countWords(out)} ${currentUiLang === 'ru' ? 'слов' : currentUiLang === 'mo' ? 'cuvinte' : 'words'}`;
+  const out = getOutputText();
+  const cw = currentUiLang === 'ru' ? 'символов' : currentUiLang === 'mo' ? 'caractere' : 'characters';
+  const ww = currentUiLang === 'ru' ? 'слов' : currentUiLang === 'mo' ? 'cuvinte' : 'words';
+  document.getElementById("input-stats").textContent = `${inp.length} ${cw} · ${countWords(inp)} ${ww}`;
+  document.getElementById("output-stats").textContent = `${out.length} ${cw} · ${countWords(out)} ${ww}`;
+}
+
+// renderOutputHighlighted fills the output div with the synonymized text and
+// wraps every changed word in a clickable span so it can be reverted.
+function renderOutputHighlighted(inputText, outputText) {
+  const el = document.getElementById("output");
+  el.innerHTML = "";
+  // Tokenise keeping whitespace: [word, ws, word, ws, …].
+  const inTok = inputText.split(/(\s+)/);
+  const outTok = outputText.split(/(\s+)/);
+  // Index of word tokens (even positions) for input.
+  const inWords = [];
+  for (let i = 0; i < inTok.length; i += 2) inWords.push(inTok[i]);
+  let wordIdx = 0;
+  let changedCount = 0;
+
+  for (let i = 0; i < outTok.length; i++) {
+    const tok = outTok[i];
+    if (i % 2 === 1) {
+      // whitespace separator
+      el.appendChild(document.createTextNode(tok));
+      continue;
+    }
+    if (tok === "") { wordIdx++; continue; }
+    const orig = inWords[wordIdx] || "";
+    const stripped = (s) => s.replace(/[.,!?;:()«»"'…]/g, "").toLowerCase();
+    if (orig && stripped(orig) !== stripped(tok)) {
+      const span = document.createElement("span");
+      span.className = "changed";
+      span.textContent = tok;
+      span.dataset.orig = orig;
+      span.title = `${orig} → ${tok}  (click to revert)`;
+      el.appendChild(span);
+      changedCount++;
+    } else {
+      el.appendChild(document.createTextNode(tok));
+    }
+    wordIdx++;
+  }
+  document.querySelector(".revert-hint").style.display = changedCount > 0 ? "" : "none";
+}
+
+// revertWord turns a highlighted span back into its original plain word.
+function revertWord(span) {
+  const orig = span.dataset.orig || span.textContent;
+  span.replaceWith(document.createTextNode(orig));
+  updateStats();
 }
 
 // ============================================================
@@ -245,7 +312,7 @@ async function run() {
     });
     if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
-    document.getElementById("output").value = data.output;
+    renderOutputHighlighted(text, data.output);
     updateStats();
     status.textContent = t('msg_done');
     status.className = "status ok";
@@ -292,7 +359,7 @@ async function paste() {
 }
 
 async function copyOut() {
-  const text = document.getElementById("output").value;
+  const text = getOutputText();
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
@@ -300,14 +367,17 @@ async function copyOut() {
     status.textContent = t('msg_copied');
     status.className = "status ok";
   } catch (_) {
-    const ta = document.getElementById("output");
-    ta.select();
+    const range = document.createRange();
+    range.selectNodeContents(document.getElementById("output"));
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
     document.execCommand("copy");
   }
 }
 
 function downloadTxt() {
-  const text = document.getElementById("output").value;
+  const text = getOutputText();
   if (!text) return;
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -376,8 +446,98 @@ async function uploadDocx(file) {
   }
 }
 
+// triggerDownload saves a blob under the given filename.
+function triggerDownload(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+// uploadBatchDocx sends several .docx files and downloads them as one ZIP.
+async function uploadBatchDocx(files) {
+  const status = document.getElementById("docx-status");
+  const language = document.getElementById("language").value;
+  status.textContent = `${t('msg_doc_processing')}${files.length} .docx…`;
+  status.className = "status";
+
+  const fd = new FormData();
+  for (const f of files) fd.append("files", f, f.name);
+  fd.append("language", language);
+
+  try {
+    const resp = await fetch("/api/humanize-docx-batch", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error((await resp.text()) || resp.statusText);
+    const processed = parseInt(resp.headers.get("X-Humanity-Processed") || "0", 10);
+    const failed = parseInt(resp.headers.get("X-Humanity-Failed") || "0", 10);
+    triggerDownload(await resp.blob(), "synonymized_docx.zip");
+    status.textContent = `${t('msg_ready')}synonymized_docx.zip (${processed} ok` +
+      (failed ? `, ${failed} failed` : "") + `)`;
+    status.className = "status ok";
+  } catch (e) {
+    status.textContent = t('msg_failed') + e.message;
+    status.className = "status err";
+  }
+}
+
+// uploadPdf sends a .pdf, gets back the synonymized text as .txt.
+async function uploadPdf(file) {
+  const status = document.getElementById("docx-status");
+  const language = document.getElementById("language").value;
+  status.textContent = `${t('msg_doc_processing')}"${file.name}"…`;
+  status.className = "status";
+
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  fd.append("language", language);
+
+  try {
+    const resp = await fetch("/api/humanize-pdf", { method: "POST", body: fd });
+    if (!resp.ok) throw new Error((await resp.text()) || resp.statusText);
+    const synonyms = parseInt(resp.headers.get("X-Humanity-Synonyms") || "0", 10);
+    const lang = resp.headers.get("X-Humanity-Language") || "";
+    const outName = file.name.replace(/\.pdf$/i, ".synonymized.txt");
+    triggerDownload(await resp.blob(), outName);
+    status.textContent = `${t('msg_ready')}"${outName}" [${LANG_NAMES[lang] || lang}] (${synonyms} synonyms)`;
+    status.className = "status ok";
+  } catch (e) {
+    status.textContent = t('msg_failed') + e.message;
+    status.className = "status err";
+  }
+}
+
+// uploadFiles routes a dropped/chosen file list to the right handler:
+// one .docx → single DOCX; many .docx → ZIP batch; .pdf → PDF text.
+function uploadFiles(fileList) {
+  const status = document.getElementById("docx-status");
+  const files = Array.from(fileList).filter(f => f.size > 0);
+  if (files.length === 0) {
+    status.textContent = t('msg_empty_file');
+    status.className = "status err";
+    return;
+  }
+  const docx = files.filter(f => f.name.toLowerCase().endsWith(".docx"));
+  const pdf = files.filter(f => f.name.toLowerCase().endsWith(".pdf"));
+  if (docx.length === 0 && pdf.length === 0) {
+    status.textContent = t('msg_not_docx');
+    status.className = "status err";
+    return;
+  }
+  if (docx.length === 1 && pdf.length === 0) {
+    uploadDocx(docx[0]);
+  } else if (docx.length > 1) {
+    uploadBatchDocx(docx);
+  }
+  // PDFs are processed one at a time.
+  for (const p of pdf) uploadPdf(p);
+}
+
 // ============================================================
-// Drag and drop for DOCX
+// Drag and drop for documents
 // ============================================================
 function setupDragDrop() {
   const dropzone = document.getElementById('docx-dropzone');
@@ -398,7 +558,7 @@ function setupDragDrop() {
   dropzone.addEventListener('drop', (e) => {
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      uploadDocx(files[0]);
+      uploadFiles(files);
     }
   });
 }
@@ -428,20 +588,28 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("download-btn").addEventListener("click", downloadTxt);
   document.getElementById("clear-btn").addEventListener("click", () => {
     document.getElementById("input").value = "";
-    document.getElementById("output").value = "";
+    setOutputPlain("");
     document.getElementById("changes").textContent = "";
     document.getElementById("detected-lang").textContent = "";
     document.getElementById("diff-section").style.display = 'none';
+    document.querySelector(".revert-hint").style.display = "none";
     updateStats();
     try { localStorage.removeItem('lastInput'); localStorage.removeItem('lastOutput'); } catch (_) {}
   });
 
   document.getElementById("input").addEventListener("input", updateStats);
 
+  // Click a highlighted word to revert it to the original.
+  document.getElementById("output").addEventListener("click", (e) => {
+    const span = e.target.closest(".changed");
+    if (span) revertWord(span);
+  });
+
   document.getElementById("docx-file").addEventListener("change", (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (f) uploadDocx(f);
-    e.target.value = ""; // allow re-upload of same file
+    if (e.target.files && e.target.files.length > 0) {
+      uploadFiles(e.target.files);
+    }
+    e.target.value = ""; // allow re-upload of the same file
   });
 
   // Diff toggle
@@ -470,7 +638,9 @@ window.addEventListener("DOMContentLoaded", () => {
     const lastInput = localStorage.getItem('lastInput');
     if (lastInput) document.getElementById('input').value = lastInput;
     const lastOutput = localStorage.getItem('lastOutput');
-    if (lastOutput) document.getElementById('output').value = lastOutput;
+    if (lastInput && lastOutput) {
+      renderOutputHighlighted(lastInput, lastOutput);
+    }
   } catch (_) {}
 
   updateStats();

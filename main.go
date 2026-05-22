@@ -1,6 +1,8 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"embed"
 	"encoding/json"
 	"flag"
@@ -65,6 +67,8 @@ func main() {
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 	mux.HandleFunc("/api/humanize", handleHumanize)
 	mux.HandleFunc("/api/humanize-docx", handleHumanizeDocx)
+	mux.HandleFunc("/api/humanize-docx-batch", handleHumanizeDocxBatch)
+	mux.HandleFunc("/api/humanize-pdf", handleHumanizePDF)
 	mux.HandleFunc("/api/languages", handleLanguages)
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("ok"))
@@ -247,6 +251,148 @@ func handleHumanizeDocx(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Humanity-Synonyms", fmt.Sprintf("%d", totalSynonyms))
 	w.Header().Set("X-Humanity-Words-Before", fmt.Sprintf("%d", before.Words))
 	w.Header().Set("X-Humanity-Words-After", fmt.Sprintf("%d", after.Words))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(out)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(out)
+}
+
+// synonymizeDocxBytes runs the DOCX synonymizer on one file's bytes and
+// returns the processed document. Language is detected per file when lang
+// is empty or "auto".
+func synonymizeDocxBytes(src []byte, lang humanize.Language) ([]byte, error) {
+	useLang := lang
+	if useLang == "" || useLang == humanize.LangAuto {
+		useLang = humanize.DetectLanguage(docx.ExtractPlainText(src, 50_000))
+	}
+	return docx.Process(src, func(s string) string {
+		if strings.TrimSpace(s) == "" {
+			return s
+		}
+		return humanize.ProcessRun(humanize.Input{Text: s, Language: useLang}).Output
+	})
+}
+
+// handleHumanizeDocxBatch processes several .docx files in one request and
+// returns them packed into a single ZIP archive.
+func handleHumanizeDocxBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseMultipartForm(200 << 20); err != nil {
+		http.Error(w, "bad multipart: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	files := r.MultipartForm.File["files"]
+	if len(files) == 0 {
+		http.Error(w, "no files", http.StatusBadRequest)
+		return
+	}
+	lang := humanize.Language(r.FormValue("language"))
+
+	var zipBuf bytes.Buffer
+	zw := zip.NewWriter(&zipBuf)
+	processed, failed := 0, 0
+
+	for _, fh := range files {
+		name := fh.Filename
+		if !strings.HasSuffix(strings.ToLower(name), ".docx") {
+			failed++
+			continue
+		}
+		f, err := fh.Open()
+		if err != nil {
+			failed++
+			continue
+		}
+		src, err := io.ReadAll(f)
+		f.Close()
+		if err != nil {
+			failed++
+			continue
+		}
+		out, err := synonymizeDocxBytes(src, lang)
+		if err != nil {
+			failed++
+			continue
+		}
+		outName := strings.TrimSuffix(name, ".docx") + ".synonymized.docx"
+		entry, err := zw.Create(outName)
+		if err != nil {
+			failed++
+			continue
+		}
+		if _, err := entry.Write(out); err != nil {
+			failed++
+			continue
+		}
+		processed++
+	}
+	if err := zw.Close(); err != nil {
+		http.Error(w, "zip: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if processed == 0 {
+		http.Error(w, "no .docx files could be processed", http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="synonymized_docx.zip"`)
+	w.Header().Set("X-Humanity-Processed", fmt.Sprintf("%d", processed))
+	w.Header().Set("X-Humanity-Failed", fmt.Sprintf("%d", failed))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", zipBuf.Len()))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(zipBuf.Bytes())
+}
+
+// handleHumanizePDF extracts the text from a PDF, synonymizes it, and returns
+// the result as a plain-text file. PDF layout/formatting is not reconstructed
+// — only the text is processed (unlike DOCX, where formatting is preserved).
+func handleHumanizePDF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	if err := r.ParseMultipartForm(50 << 20); err != nil {
+		http.Error(w, "bad multipart: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "no file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".pdf") {
+		http.Error(w, "only .pdf is supported", http.StatusUnsupportedMediaType)
+		return
+	}
+	src, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "read file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	text, err := docx.ExtractPDFText(src)
+	if err != nil {
+		http.Error(w, "pdf extract: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(text) == "" {
+		http.Error(w, "no extractable text found in PDF (it may be scanned images or encrypted)", http.StatusBadRequest)
+		return
+	}
+
+	lang := humanize.Language(r.FormValue("language"))
+	res := humanize.Process(humanize.Input{Text: text, Language: lang})
+
+	outName := strings.TrimSuffix(header.Filename, ".pdf") + ".synonymized.txt"
+	out := []byte(res.Output)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, outName))
+	w.Header().Set("X-Humanity-Language", string(res.DetectedLanguage))
+	w.Header().Set("X-Humanity-Synonyms", fmt.Sprintf("%d", res.SynonymsApplied))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(out)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(out)
