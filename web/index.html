@@ -16,10 +16,6 @@
       </div>
     </div>
     <div class="header-controls">
-      <div class="header-donate" title="Support the project">
-        <a href="https://buymeacoffee.com/aristarh.ucolov" target="_blank" rel="noopener" class="hdr-donate coffee" data-i18n-title="donate_coffee">☕</a>
-        <a href="https://www.donationalerts.com/r/aristarh_ucolov" target="_blank" rel="noopener" class="hdr-donate alerts" data-i18n-title="donate_alerts">💜</a>
-      </div>
       <button id="theme-toggle" class="theme-btn" title="Toggle theme" aria-label="Toggle theme">🌙</button>
       <div class="ui-lang">
         <label for="ui-lang-select" data-i18n="ui_lang_label">UI:</label>
@@ -31,6 +27,16 @@
       </div>
     </div>
   </header>
+
+  <!-- Support bar — author + donate buttons, visible right under the header -->
+  <section class="support-bar">
+    <span class="support-author"><span data-i18n="footer_author">Author:</span> <strong>Aristarh Ucolov</strong></span>
+    <div class="support-donate">
+      <span data-i18n="donate_label">Support the project:</span>
+      <a href="https://buymeacoffee.com/aristarh.ucolov" target="_blank" rel="noopener" class="donate-btn coffee">☕ Buy Me a Coffee</a>
+      <a href="https://www.donationalerts.com/r/aristarh_ucolov" target="_blank" rel="noopener" class="donate-btn alerts">💜 DonationAlerts</a>
+    </div>
+  </section>
 
   <section class="docx-bar" id="docx-dropzone">
     <div class="docx-info">
@@ -102,16 +108,6 @@
 
   <footer>
     <p class="footer-info" data-i18n="footer_info">Runs entirely offline on your computer. ~18,800 synonyms across English, Russian, and Moldovan.</p>
-    <p class="footer-author"><span data-i18n="footer_author">Author:</span> <strong>Aristarh Ucolov</strong></p>
-    <div class="donate-links">
-      <span data-i18n="donate_label">Support the project:</span>
-      <a href="https://buymeacoffee.com/aristarh.ucolov" target="_blank" rel="noopener" class="donate-btn coffee">
-        ☕ Buy Me a Coffee
-      </a>
-      <a href="https://www.donationalerts.com/r/aristarh_ucolov" target="_blank" rel="noopener" class="donate-btn alerts">
-        💜 DonationAlerts
-      </a>
-    </div>
   </footer>
 
   <!-- Donation toast: shown once per session after a successful synonymise -->
