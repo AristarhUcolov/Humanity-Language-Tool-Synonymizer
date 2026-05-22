@@ -74,25 +74,33 @@ func main() {
 	if err != nil {
 		log.Fatalf("listen %s: %v", *addr, err)
 	}
-	url := "http://" + ln.Addr().String()
+
+	// browserURL is the address the browser actually opens. A wildcard bind
+	// (0.0.0.0 or [::]) is not a routable address — browsers cannot connect to
+	// it — so we always open via loopback 127.0.0.1 on the actual port.
+	port := "8080"
+	if _, p, splitErr := net.SplitHostPort(ln.Addr().String()); splitErr == nil && p != "" {
+		port = p
+	}
+	browserURL := "http://127.0.0.1:" + port
 
 	// If listening on 0.0.0.0, also show localhost and IP addresses
 	if strings.Contains(*addr, "0.0.0.0") {
 		fmt.Println("\n━━━ Synonymaizer Server ━━━")
 		fmt.Println("🌐 Network Access (from other devices):")
-		getLocalIPs()
-		fmt.Println("Local only (localhost):   http://127.0.0.1:8080")
+		getLocalIPs(port)
+		fmt.Println("Local only (localhost):   " + browserURL)
 		fmt.Println("\nStop the server: Ctrl+C")
 	} else {
 		fmt.Println("Synonymaizer Server")
-		fmt.Println("Open in browser:", url)
+		fmt.Println("Open in browser:", browserURL)
 		fmt.Println("Stop the server: Ctrl+C")
 	}
 
 	if !*noOpen {
 		go func() {
 			time.Sleep(400 * time.Millisecond)
-			openBrowser(url)
+			openBrowser(browserURL)
 		}()
 	}
 
@@ -257,7 +265,7 @@ func openBrowser(url string) {
 	_ = cmd.Start()
 }
 
-func getLocalIPs() {
+func getLocalIPs(port string) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return
@@ -267,7 +275,7 @@ func getLocalIPs() {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			ip := ipnet.IP.String()
 			if !shown[ip] && ipnet.IP.To4() != nil {
-				fmt.Printf("   http://%s:8080\n", ip)
+				fmt.Printf("   http://%s:%s\n", ip, port)
 				shown[ip] = true
 			}
 		}
