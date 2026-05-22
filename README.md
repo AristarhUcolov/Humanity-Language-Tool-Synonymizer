@@ -24,10 +24,10 @@
 ### ✨ Features
 
 - 🌍 **Multi-language support**: English, Russian, Moldovan/Romanian with auto-detection
-- 📚 **Huge synonym dictionaries** (~16,300 total):
+- 📚 **Huge synonym dictionaries** (~18,400 total):
   - English: **7,700+** entries
   - Russian: **5,600+** entries
-  - Moldovan: **2,900+** entries
+  - Moldovan: **5,000+** entries
 - 📄 **Full DOCX support**: Preserves all formatting
   - All fonts (Times New Roman, Arial, Calibri, etc.)
   - All sizes (6pt to 72pt+)
@@ -132,7 +132,7 @@ go build -ldflags="-s -w" -o humanity.exe
 │       ├── dicts.go                 # Dictionary structures
 │       ├── dict_en.go               # English (7700+)
 │       ├── dict_ru.go               # Russian (5600+)
-│       └── dict_mo.go               # Moldovan (2900+)
+│       └── dict_mo.go               # Moldovan (5000+)
 └── web/
     ├── index.html                   # Web UI
     ├── app.js                       # Frontend logic
@@ -165,10 +165,10 @@ MIT License
 ### ✨ Возможности
 
 - 🌍 **Многоязычность**: Английский, русский, молдавский/румынский с автоопределением
-- 📚 **Огромные словари синонимов** (~16 300 в сумме):
+- 📚 **Огромные словари синонимов** (~18 400 в сумме):
   - Английский: **7 700+** записей
   - Русский: **5 600+** записей
-  - Молдавский: **2 900+** записей
+  - Молдавский: **5 000+** записей
 - 📄 **Полная поддержка DOCX**: сохраняет всё форматирование
   - Все шрифты (Times New Roman, Arial, Calibri и др.)
   - Все размеры (от 6pt до 72pt+)
@@ -273,7 +273,7 @@ go build -ldflags="-s -w" -o humanity.exe
 │       ├── dicts.go                 # Структуры словарей
 │       ├── dict_en.go               # Английский (7700+)
 │       ├── dict_ru.go               # Русский (5600+)
-│       └── dict_mo.go               # Молдавский (2900+)
+│       └── dict_mo.go               # Молдавский (5000+)
 └── web/
     ├── index.html                   # Веб-интерфейс
     ├── app.js                       # Логика фронтенда

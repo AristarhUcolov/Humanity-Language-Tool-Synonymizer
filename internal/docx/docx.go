@@ -169,8 +169,13 @@ func transformParagraph(para []byte, transform func(string) string) []byte {
 	var b strings.Builder
 	cursor := 0
 
-	// A pending group of consecutive simple runs with identical rPr.
-	type runRef struct{ start, end int }
+	// A pending group of consecutive simple runs with identical rPr. Each
+	// member keeps the literal `gap` that preceded its run so that, on flush,
+	// gap and run are emitted together in the original order.
+	type runRef struct {
+		gap        string
+		start, end int
+	}
 	var group []runRef
 	var groupPr string
 
@@ -179,8 +184,8 @@ func transformParagraph(para []byte, transform func(string) string) []byte {
 			return
 		}
 		if len(group) == 1 {
-			// Single run — transform it on its own.
 			r := group[0]
+			b.WriteString(r.gap)
 			b.WriteString(transformSimpleRun(s[r.start:r.end], transform))
 		} else {
 			// Join all runs' text, transform together, redistribute.
@@ -191,14 +196,17 @@ func transformParagraph(para []byte, transform func(string) string) []byte {
 			orig := joined.String()
 			out := transform(orig)
 			if out == orig {
-				// No change — emit runs verbatim.
+				// No change — emit gaps and runs verbatim, in order.
 				for _, r := range group {
+					b.WriteString(r.gap)
 					b.WriteString(s[r.start:r.end])
 				}
 			} else {
 				// First run gets the whole result; the rest are emptied.
+				b.WriteString(group[0].gap)
 				b.WriteString(setSimpleRunText(s[group[0].start:group[0].end], out))
 				for _, r := range group[1:] {
+					b.WriteString(r.gap)
 					b.WriteString(setSimpleRunText(s[r.start:r.end], ""))
 				}
 			}
@@ -208,29 +216,23 @@ func transformParagraph(para []byte, transform func(string) string) []byte {
 	}
 
 	for _, loc := range runLocs {
-		// Emit the literal segment before this run.
 		gap := s[cursor:loc[0]]
 		run := s[loc[0]:loc[1]]
 		cursor = loc[1]
 
 		// A non-whitespace gap (bookmark, proofErr, …) breaks any group.
-		if strings.TrimSpace(gap) != "" {
-			flush()
-		}
+		gapBreaks := strings.TrimSpace(gap) != ""
 
 		if isSimpleRun(run) {
 			pr := runProps(run)
-			if len(group) > 0 && pr != groupPr {
+			if len(group) > 0 && (gapBreaks || pr != groupPr) {
 				flush()
 			}
 			if len(group) == 0 {
 				groupPr = pr
 			}
-			// Defer writing the run; record its location.
-			// The gap must be written in order: flush() above already ran if
-			// needed, so write the gap now, then stage the run.
-			b.WriteString(gap)
-			group = append(group, runRef{loc[0], loc[1]})
+			// Stage the run together with its preceding gap.
+			group = append(group, runRef{gap: gap, start: loc[0], end: loc[1]})
 		} else {
 			// Complex run — flush the group, then transform it standalone.
 			flush()

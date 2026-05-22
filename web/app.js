@@ -121,6 +121,21 @@ const LANG_NAMES = {
 
 let currentUiLang = localStorage.getItem('uiLang') || 'en';
 
+// ============================================================
+// Theme (light / dark)
+// ============================================================
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = theme === 'light' ? '☀️' : '🌙';
+  try { localStorage.setItem('theme', theme); } catch (_) {}
+}
+
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+
 function t(key) {
   return (I18N[currentUiLang] && I18N[currentUiLang][key]) || I18N.en[key] || key;
 }
@@ -392,6 +407,10 @@ function setupDragDrop() {
 // Init
 // ============================================================
 window.addEventListener("DOMContentLoaded", () => {
+  // Apply saved theme (default dark)
+  applyTheme(localStorage.getItem('theme') || 'dark');
+  document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
+
   // Apply initial translations
   document.getElementById("ui-lang-select").value = currentUiLang;
   applyTranslations();
