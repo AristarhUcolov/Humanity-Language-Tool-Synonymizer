@@ -173,13 +173,15 @@ func capitalizeSentences(text string) string {
 	return string(runes)
 }
 
-func collapseSpaces(text string) string {
-	text = reMultiSpaces.ReplaceAllString(text, " ")
-	lines := strings.Split(text, "\n")
-	for i, l := range lines {
-		lines[i] = strings.TrimRight(l, " \t")
-	}
-	return strings.TrimSpace(strings.Join(lines, "\n"))
+// collapseInlineSpaces collapses runs of spaces/tabs *between words* into one
+// space and trims the trailing edge. The leading indent is preserved verbatim
+// — it is meaningful structure. The argument must not contain newlines (the
+// pipeline processes the text one line at a time).
+func collapseInlineSpaces(line string) string {
+	body := strings.TrimLeft(line, " \t")
+	indent := line[:len(line)-len(body)]
+	body = reMultiSpaces.ReplaceAllString(body, " ")
+	return indent + strings.TrimRight(body, " \t")
 }
 
 // softenLongSentences splits sentences longer than maxWords on the first

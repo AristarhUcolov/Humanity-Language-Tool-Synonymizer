@@ -101,6 +101,39 @@ func TestProcessRunMoldovan(t *testing.T) {
 	}
 }
 
+func TestProcessPreservesLineStructure(t *testing.T) {
+	// Newlines and blank lines must survive synonymisation unchanged.
+	in := "The good man works.\nHe made big changes.\n\nThe end is near."
+	res := Process(Input{Text: in, Language: LangEnglish})
+	inLines := strings.Count(in, "\n")
+	outLines := strings.Count(res.Output, "\n")
+	if inLines != outLines {
+		t.Errorf("newline count changed: in=%d out=%d\noutput=%q",
+			inLines, outLines, res.Output)
+	}
+	// The blank line between paragraphs must still be blank.
+	parts := strings.Split(res.Output, "\n")
+	if len(parts) != 4 || strings.TrimSpace(parts[2]) != "" {
+		t.Errorf("blank paragraph line not preserved: %q", res.Output)
+	}
+}
+
+func TestProcessPreservesParagraphIndent(t *testing.T) {
+	// A leading indent (meaningful structure) must be kept.
+	res := Process(Input{Text: "    The good man works.", Language: LangEnglish})
+	if !strings.HasPrefix(res.Output, "    ") {
+		t.Errorf("leading indent lost: %q", res.Output)
+	}
+}
+
+func TestProcessMultilineSynonyms(t *testing.T) {
+	// Synonyms are still applied on every line.
+	res := Process(Input{Text: "good\ngood\ngood", Language: LangEnglish})
+	if res.SynonymsApplied != 3 {
+		t.Errorf("expected 3 synonyms across 3 lines, got %d", res.SynonymsApplied)
+	}
+}
+
 func TestAnalyseCounts(t *testing.T) {
 	a := Analyse("Hello world. This is a test.")
 	if a.Words != 6 {

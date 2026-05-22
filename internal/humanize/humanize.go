@@ -2,6 +2,7 @@ package humanize
 
 import (
 	"fmt"
+	"strings"
 )
 
 // Input is the request to the synonymaizer pipeline.
@@ -30,47 +31,66 @@ type Result struct {
 // Process runs the synonymaizer pipeline. It is safe to call from many
 // goroutines (no shared mutable state beyond the regex cache, which is
 // protected by a mutex inside replace.go).
+//
+// The input is processed line by line: every newline in the original text is
+// kept exactly where it was, so paragraph and line structure survive intact.
+// Sentence-level work (synonym swaps, long-sentence splitting, punctuation
+// normalisation, capitalisation) happens within each line.
 func Process(in Input) Result {
 	text := in.Text
 	res := Result{Before: Analyse(text)}
 
-	// 1. Detect or use specified language
+	// 1. Detect or use specified language (from the whole text).
 	lang := in.Language
 	if lang == "" || lang == LangAuto {
 		lang = DetectLanguage(text)
 	}
 	res.DetectedLanguage = lang
 
-	// 2. Pick the dictionary pack for the detected language
+	// 2. Pick the dictionary pack for the detected language.
 	p := pickPack(lang)
 
-	// 3. Apply synonym replacements to elevate vocabulary.
-	var n int
-	text, n = replaceMap(text, p.AICliches)
-	res.SynonymsApplied = n
+	// 3. Process each line independently, preserving every newline.
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue // keep blank lines (paragraph gaps) exactly as-is
+		}
+		lines[i] = processLine(line, p, lang, &res)
+	}
+	res.Output = strings.Join(lines, "\n")
 
-	// 4. Adaptive: only split monster sentences (> 28 words). English-style logic
-	// works reasonably for other Latin scripts; less effective for Russian but harmless.
-	text, res.SentencesSplit = softenLongSentences(text, 28)
-
-	// 5. Punctuation / dash / quote normalisation.
-	text, res.PunctFixes = normalizePunctuation(text)
-	text = normalizePunctuationForLang(text, lang)
-
-	// 6. Mop up orphan commas / periods left behind by deletions.
-	text = fixOrphanPunctuation(text)
-
-	// 7. Collapse runs of spaces and trim line endings.
-	text = collapseSpaces(text)
-
-	// 8. Re-capitalise sentence starts.
-	text = capitalizeSentences(text)
-
-	res.Output = text
-	res.After = Analyse(text)
-
+	res.After = Analyse(res.Output)
 	res.Notes = buildNotes(res)
 	return res
+}
+
+// processLine runs the sentence-level pipeline on a single line of text and
+// accumulates telemetry into res.
+func processLine(line string, p dictPack, lang Language, res *Result) string {
+	// a. Apply synonym replacements to elevate vocabulary.
+	line, n := replaceMap(line, p.AICliches)
+	res.SynonymsApplied += n
+
+	// b. Split monster sentences (> 28 words) on a coordinating conjunction.
+	line, split := softenLongSentences(line, 28)
+	res.SentencesSplit += split
+
+	// c. Punctuation / dash / quote normalisation.
+	line, pf := normalizePunctuation(line)
+	res.PunctFixes += pf
+	line = normalizePunctuationForLang(line, lang)
+
+	// d. Mop up orphan commas / periods left behind by deletions.
+	line = fixOrphanPunctuation(line)
+
+	// e. Collapse runs of spaces; trim only the trailing edge (a leading
+	//    indent is meaningful structure and is kept).
+	line = collapseInlineSpaces(line)
+
+	// f. Re-capitalise sentence starts within the line.
+	line = capitalizeSentences(line)
+	return line
 }
 
 // ProcessRun is the synonymaizer pipeline for a single DOCX text run (one
